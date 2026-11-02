@@ -1,0 +1,478 @@
+
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <base target="_top">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>四位數幾A幾B｜版本四</title>
+
+  <style>
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      padding: 25px 15px;
+      font-family: Arial, "Noto Sans TC", sans-serif;
+      color: #203047;
+      background: linear-gradient(135deg, #e0f2fe, #ede9fe);
+      min-height: 100vh;
+    }
+
+    .container {
+      width: min(760px, 100%);
+      margin: auto;
+    }
+
+    .panel {
+      background: white;
+      padding: 25px;
+      margin-bottom: 18px;
+      border-radius: 20px;
+      box-shadow: 0 8px 25px #26334a18;
+    }
+
+    h1, h2 { margin-top: 0; }
+    h1 { text-align: center; color: #4f46e5; }
+    .sub { text-align: center; color: #64748b; }
+
+    input {
+      width: 100%;
+      padding: 13px;
+      font-size: 20px;
+      border: 2px solid #cbd5e1;
+      border-radius: 10px;
+      margin: 10px 0;
+    }
+
+    button {
+      border: 0;
+      padding: 12px 18px;
+      border-radius: 10px;
+      background: #4f46e5;
+      color: white;
+      font-size: 16px;
+      cursor: pointer;
+      margin: 5px 3px;
+    }
+
+    button:disabled {
+      opacity: .5;
+      cursor: not-allowed;
+    }
+
+    .secondary { background: #64748b; }
+    .green { background: #059669; }
+    .red { background: #dc2626; }
+
+    .notice {
+      background: #eff6ff;
+      border-left: 4px solid #3b82f6;
+      padding: 13px;
+      border-radius: 8px;
+      line-height: 1.7;
+    }
+
+    .status {
+      color: #475569;
+      line-height: 1.7;
+      overflow-wrap: anywhere;
+    }
+
+    .message {
+      min-height: 28px;
+      color: #dc2626;
+      font-weight: bold;
+    }
+
+    .answer {
+      background: #fef3c7;
+      padding: 12px;
+      border-radius: 10px;
+      font-weight: bold;
+    }
+
+    .history-item {
+      border: 1px solid #e2e8f0;
+      padding: 12px;
+      border-radius: 10px;
+      margin: 9px 0;
+      line-height: 1.7;
+    }
+
+    .small {
+      color: #64748b;
+      font-size: 13px;
+    }
+
+    .hidden { display: none; }
+
+    @media (max-width: 480px) {
+      .panel { padding: 18px; }
+      button { width: 100%; margin: 5px 0; }
+    }
+  </style>
+</head>
+
+<body>
+<div class="container">
+
+  <div class="panel">
+    <h1>🔢 四位數幾A幾B</h1>
+    <p class="sub">版本四｜Google 帳號個人紀錄版</p>
+  </div>
+
+  <!-- 授權說明 -->
+  <section id="consentPanel" class="panel">
+    <h2>開始遊戲前，請先閱讀</h2>
+
+    <div class="notice">
+      本遊戲需要使用你的 Google 帳號辨識玩家，
+      並在你的 Google 雲端硬碟建立一份個人遊戲紀錄試算表。
+
+      <ul>
+        <li>試算表用來保存你的猜題紀錄。</li>
+        <li>再次使用相同 Google 帳號，可以繼續之前的遊戲。</li>
+        <li>不同 Google 帳號會有各自獨立的試算表。</li>
+        <li>遊戲不會要求你輸入 Google 密碼。</li>
+      </ul>
+    </div>
+
+    <p>
+      按下「同意並繼續」後，Google 會顯示授權畫面。
+      請閱讀授權內容，再自行決定是否同意。
+    </p>
+
+    <button id="consentBtn" onclick="startAuthorization()">
+      同意並繼續
+    </button>
+
+    <p id="consentMessage" class="message"></p>
+  </section>
+
+  <!-- 遊戲區 -->
+  <main id="gamePanel" class="hidden">
+
+    <section class="panel">
+      <h2>我的帳號</h2>
+      <div id="accountInfo" class="status"></div>
+      <div id="saveStatus" class="small">尚未儲存</div>
+      <button class="secondary" onclick="showSpreadsheet()">
+        查看我的試算表
+      </button>
+    </section>
+
+    <section class="panel">
+      <h2>遊戲區</h2>
+      <p>請猜一組由 0～9 組成、數字不重複的四位數。</p>
+      <p>數字和位置都正確是 A；數字正確但位置錯誤是 B。</p>
+
+      <div id="gameInfo" class="status"></div>
+
+      <div id="answerBox" class="answer hidden"></div>
+
+      <input
+        id="guessInput"
+        type="text"
+        inputmode="numeric"
+        maxlength="4"
+        placeholder="輸入四位數，例如 0123"
+        autocomplete="off"
+      >
+
+      <button id="guessBtn" onclick="submitGuess()">送出答案</button>
+      <button class="green" onclick="createGame()">開始新遊戲</button>
+      <button class="secondary" onclick="toggleDebug()">除錯模式：關閉</button>
+
+      <p id="gameMessage" class="message"></p>
+      <div id="guessHistory"></div>
+    </section>
+
+    <section class="panel">
+      <h2>我的遊戲紀錄</h2>
+      <div id="allHistory"></div>
+    </section>
+
+  </main>
+</div>
+
+<script>
+  let games = [];
+  let activeGameId = null;
+  let spreadsheetUrl = "";
+  let debugMode = false;
+  let busy = false;
+
+  function setMessage(id, text) {
+    document.getElementById(id).textContent = text;
+  }
+
+  function setBusy(value) {
+    busy = value;
+    document.getElementById("consentBtn").disabled = value;
+    document.getElementById("guessBtn").disabled = value;
+  }
+
+  function startAuthorization() {
+    if (busy) return;
+
+    setBusy(true);
+    setMessage("consentMessage", "正在連接 Google 帳號，請稍候……");
+
+    google.script.run
+      .withSuccessHandler(function(result) {
+        games = Array.isArray(result.games) ? result.games : [];
+        spreadsheetUrl = result.spreadsheetUrl || "";
+
+        document.getElementById("consentPanel").classList.add("hidden");
+        document.getElementById("gamePanel").classList.remove("hidden");
+
+        document.getElementById("accountInfo").textContent =
+          "目前 Google 帳號：" + result.email;
+
+        setBusy(false);
+
+        // 自動接續最新一局未完成的遊戲
+        const unfinished = games
+          .filter(g => g.status !== "完成")
+          .sort((a, b) => (b.updatedAt || "").localeCompare(a.updatedAt || ""));
+
+        if (unfinished.length > 0) {
+          activeGameId = unfinished[0].id;
+          render();
+        } else {
+          render();
+          setMessage("gameMessage", "歡迎！請按「開始新遊戲」。");
+        }
+      })
+      .withFailureHandler(function(error) {
+        setBusy(false);
+        setMessage(
+          "consentMessage",
+          "授權或讀取失敗：" + error.message
+        );
+      })
+      .getOrCreateProfile();
+  }
+
+  function makeAnswer() {
+    const digits = ["0","1","2","3","4","5","6","7","8","9"];
+
+    for (let i = digits.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [digits[i], digits[j]] = [digits[j], digits[i]];
+    }
+
+    return digits.slice(0, 4).join("");
+  }
+
+  function activeGame() {
+    return games.find(g => g.id === activeGameId);
+  }
+
+  function createGame() {
+    if (busy) return;
+
+    const now = new Date().toISOString();
+
+    const game = {
+      id: String(Date.now()) + Math.random().toString(16).slice(2),
+      answer: makeAnswer(),
+      guesses: [],
+      status: "進行中",
+      createdAt: now,
+      updatedAt: now
+    };
+
+    games.push(game);
+    activeGameId = game.id;
+
+    setMessage("gameMessage", "新遊戲開始！");
+    document.getElementById("guessInput").value = "";
+
+    render();
+    saveGames();
+  }
+
+  function submitGuess() {
+    if (busy) return;
+
+    const game = activeGame();
+    if (!game || game.status === "完成") {
+      setMessage("gameMessage", "請先開始新遊戲。");
+      return;
+    }
+
+    const input = document.getElementById("guessInput");
+    const guess = input.value.trim();
+
+    if (!/^\d{4}$/.test(guess)) {
+      setMessage("gameMessage", "請輸入四位數字。");
+      return;
+    }
+
+    if (new Set(guess).size !== 4) {
+      setMessage("gameMessage", "四個數字不能重複。");
+      return;
+    }
+
+    let A = 0;
+    let B = 0;
+
+    for (let i = 0; i < 4; i++) {
+      if (guess[i] === game.answer[i]) {
+        A++;
+      } else if (game.answer.includes(guess[i])) {
+        B++;
+      }
+    }
+
+    const now = new Date().toISOString();
+
+    game.guesses.push({
+      guess: guess,
+      A: A,
+      B: B,
+      time: now
+    });
+
+    game.updatedAt = now;
+
+    if (A === 4) {
+      game.status = "完成";
+      setMessage("gameMessage", "🎉 恭喜你，答對了！");
+    } else {
+      setMessage("gameMessage", "結果：" + A + "A " + B + "B");
+    }
+
+    input.value = "";
+
+    render();
+    saveGames();
+  }
+
+  function toggleDebug() {
+    debugMode = !debugMode;
+
+    document.querySelector(
+      'button[onclick="toggleDebug()"]'
+    ).textContent = debugMode
+      ? "除錯模式：開啟"
+      : "除錯模式：關閉";
+
+    render();
+  }
+
+  function render() {
+    const game = activeGame();
+
+    const info = document.getElementById("gameInfo");
+    const answerBox = document.getElementById("answerBox");
+    const history = document.getElementById("guessHistory");
+
+    if (!game) {
+      info.textContent = "目前沒有進行中的遊戲。";
+      answerBox.classList.add("hidden");
+      history.innerHTML = "";
+    } else {
+      info.textContent =
+        "本局狀態：" + game.status +
+        "｜猜測次數：" + game.guesses.length;
+
+      if (debugMode) {
+        answerBox.textContent = "除錯答案：" + game.answer;
+        answerBox.classList.remove("hidden");
+      } else {
+        answerBox.classList.add("hidden");
+      }
+
+      history.innerHTML = "";
+
+      game.guesses.forEach((item, index) => {
+        const div = document.createElement("div");
+        div.className = "history-item";
+        div.textContent =
+          "第 " + (index + 1) + " 次：" +
+          item.guess + " → " + item.A + "A " + item.B + "B";
+        history.appendChild(div);
+      });
+    }
+
+    renderAllHistory();
+  }
+
+  function renderAllHistory() {
+    const box = document.getElementById("allHistory");
+    box.innerHTML = "";
+
+    if (games.length === 0) {
+      box.textContent = "目前還沒有遊戲紀錄。";
+      return;
+    }
+
+    [...games].reverse().forEach((game, index) => {
+      const div = document.createElement("div");
+      div.className = "history-item";
+
+      const title = document.createElement("strong");
+      title.textContent =
+        "第 " + (games.length - index) + " 局｜" + game.status;
+
+      const detail = document.createElement("div");
+      detail.textContent =
+        "猜測次數：" + game.guesses.length +
+        "｜開始時間：" +
+        new Date(game.createdAt).toLocaleString();
+
+      const openBtn = document.createElement("button");
+      openBtn.className = "secondary";
+      openBtn.textContent = "查看這一局";
+      openBtn.onclick = function() {
+        activeGameId = game.id;
+        setMessage("gameMessage", "已切換到選取的遊戲。");
+        render();
+      };
+
+      div.appendChild(title);
+      div.appendChild(detail);
+      div.appendChild(openBtn);
+      box.appendChild(div);
+    });
+  }
+
+  function saveGames() {
+    if (busy) return;
+
+    setBusy(true);
+    setMessage("saveStatus", "正在儲存遊戲資料……");
+
+    google.script.run
+      .withSuccessHandler(function() {
+        setBusy(false);
+        setMessage("saveStatus", "✓ 已儲存到你的 Google 試算表");
+      })
+      .withFailureHandler(function(error) {
+        setBusy(false);
+        setMessage("saveStatus", "儲存失敗：" + error.message);
+      })
+      .saveMyGames(games);
+  }
+
+  function showSpreadsheet() {
+    if (spreadsheetUrl) {
+      window.open(spreadsheetUrl, "_blank");
+    }
+  }
+
+  document.getElementById("guessInput").addEventListener(
+    "keydown",
+    function(event) {
+      if (event.key === "Enter") {
+        submitGuess();
+      }
+    }
+  );
+</script>
+</body>
+</html>
+
